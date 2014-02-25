@@ -1,0 +1,193 @@
+#!/bin/bash
+
+
+
+function SudoRun {
+	
+	SUDORUNCMD=$(echo $3 | sed s/'\\'/'\\\\'/g | sed s/'\"'/'\\\"'/g )
+	
+	ssh $1@$2 "echo -e \" $SUDORUNCMD  \" > /tmp/sudorun "
+	ssh $1@$2 "chmod +x /tmp/sudorun"
+	ssh -t $1@$2 "sudo /tmp/sudorun"
+	ssh $1@$2 "rm -f /tmp/sudorun"
+}
+
+function PrintWarning {
+	echo "Spusten ptsdeploynew na `hostname`. 
+	
+	
+	POZOR! "
+	
+	if [ ! -d /home/petos/rpms ] || ( ! mountpoint -q /home/petos/rpms) || [ ! -h /home/petos/.dotfiles ] || [ ! -h /home/petos/repocontent ]; then
+		echo "Vypada to, ze tento system neni pripraven"
+		echo "/home/petos/rpms neexistuje a neni to mountpoint"
+		echo "Prvne spustit \"$(basename $0) -i\" pro instalaci tohoto systemu!"
+		exit 1
+	fi
+
+	
+echo "Je nutne prvne spustit skript z Lizarda s parametrem -p, aby probehl prepare!!!
+"
+}
+
+function SetEnvironment {
+	rm -f ~/.bashrc
+	ln -s ~/.dotfiles/bashrc ~/.bashrc
+	source ~/.bashrc
+}
+
+function print_help () {
+echo "Vytvori deploy pro novy system v BS
+	Pouziti: $(basename $0) [-hip] 
+		-h -- vypise napovedu
+		--help -- vypise napovedu
+		-i -- instalace PTS-tools na vzdaleny node
+		-p -- Post-Instalace - k spusteni na jiz nastavenem nodu
+		-r -- znovu prenastavi prostredi BASH
+"
+    exit 0
+}
+
+#Nastaveni hostname
+function SetHostname {
+	DISTRIBUTION="$(cat /etc/mandrake-release | awk '{print $1}' | tr 'M' 'm')"
+	if [ "$DISTRIBUTION" = "mageia" ]; then
+		SHORTDIST="mga"
+		VERSION="$(cat /etc/mandrake-release | awk '{print $3}')"
+	elif [ "$DISTRIBUTION" = "mandriva" ]; then
+		SHORTDIST="mdv"
+		VERSION="$(cat /etc/mandrake-release | awk '{print $4}')"
+	else
+		echo "Nepodporovany OS"
+		exit 1
+	fi
+	ARCH="$(uname --processor  | sed s/i686/i586/g)"
+	if [ "$ARCH" = "i586" ]; then
+		SARCH="32"
+	elif [ "$ARCH" = "x86_64" ]; then
+		SARCH="64"
+	else 
+		echo "Nepodporovana architektura"
+		exit 1
+	fi
+
+	NHOSTNAME="$SHORTDIST-$VERSION-$SARCH"
+	echo -e "Zadej novy hostname pro system: [$NHOSTNAME]"
+	read -p " > " HOSTNAME
+	if [ "$HOSTNAME" = "" ]; then 
+		HOSTNAME=$NHOSTNAME
+	fi
+	echo "Pouzit $HOSTNAME"
+	sudo hostname $HOSTNAME
+	sudo sysctl kernel.hostname=$HOSTNAME
+	
+	scp lizard:~/.ptsftpcredentials ~/.ptsftpcredentials
+}
+
+
+function InstallRemoteSystem {
+	
+	echo "Priprava deploymentu na vzdalenem systemu"
+	
+	RIPADDRPRE=$(/sbin/ifconfig | grep -A3 eth0 | grep -w inet | awk '{print $2}' | awk -F ':' '{print $2}' | awk -F '.' '{print $1"."$2"."$3"."}' )
+	
+	while [ "$RIPADDREXT" = "" ]; do
+		read -p "Zadejte posledni octet IP adresy vzdaleneho serveru: $RIPADDRPRE" RIPADDREXT
+	done
+	RIPADDR="$RIPADDRPRE$RIPADDREXT"
+	RUSER=`whoami`
+	
+	while [ "$RCONFIRM" != "ano" ]; do
+		read -p "Je pridan $RUSER do sudoers na vzdalenem systemu $RIPADDR? [ano|ne|help]: " RCONFIRM
+		if [ "$RCONFIRM" = "help" ] ; then
+			echo -e "\n   Jako root spust visudo a na konec pridej radek: \n"
+			echo -e "   $RUSER   ALL=(ALL)       NOPASSWD: ALL \n"
+			exit 0
+		elif [ "$RCONFIRM" = "ne" ]; then
+			exit 0
+		elif [ "$RCONFIRM" != "ano" ]; then
+			exit 1
+		fi
+	done
+	
+	echo "Kopiruji SSH klic na vzdaleny server"
+	scp -r ~/.ssh "$RUSER"@"$RIPADDR":~
+
+	
+
+	echo "Upravuji /etc/fstab"
+	echo "Instaluji NFS"
+	ssh -t $RUSER@$RIPADDR "sudo urpmi nfs-utils --auto"
+	#tvorba adresaru
+	echo "Instaluji adresarovou strukturu"
+	ssh $RUSER@$RIPADDR "mkdir -p /home/petos/rpms"
+	#uprava fstab
+	echo "Upravuji /etc/fstab"
+	SudoRun $RUSER $RIPADDR "echo \"ds:/volume1/repos/ /home/petos/rpms/ nfs defaults,auto,vers=3 0 0\" >> /etc/fstab" 
+	#pripojeni NFS disku
+	echo "Pripojuji NFS disky"
+	ssh -t $RUSER@$RIPADDR "sudo mount -a"
+	#uprava prav
+	echo "Upravuji prava"
+	SudoRun $RUSER $RIPADDR "chown $RUSER:$RUSER /home/petos/rpms"
+	#tvorba symlinku
+	echo "Vytvarim symlinky"
+	ssh $RUSER@$RIPADDR "ln -s /home/petos/rpms/PTSSYSTEM /home/petos/.dotfiles"
+	ssh $RUSER@$RIPADDR "ln -s /home/petos/.dotfiles/repocontent /home/petos/repocontent"
+	#uprava ~/.bashrc
+	echo "Upravuji ~/.bashrc"
+	ssh $RUSER@$RIPADDR "rm ~/.bashrc"
+	ssh $RUSER@$RIPADDR "ln -s ~/.dotfiles/bashrc ~/.bashrc"
+	#Kopirovani ~/.path
+	scp ~/.path $RUSER@$RIPADDR:~/.path
+	
+	echo "
+	Instalace hotova. Spust $(basename $0) na serveru $RIPADDR jako uzivatel $RUSER:
+	
+	ssh $USER@$RIPADDR
+	
+	"
+}
+
+#nastaveni RPM struktury a maker
+function GetRPMSetup {
+	mkdir ~/tmp
+	scp lizard:~/.rpmmacros .
+	mkdir -p ~/rpm/{RPMS/noarch,SOURCES,SRPMS,SPECS,tmp}
+	ln -s ~/rpms/BUILD ~/rpm/BUILD
+	sudo urpmi --auto rsync rpm-build spec-helper libtool rpmlint rpmlint-mageia-policy rpm-sign mc
+}
+
+function MigrateLizard () {
+	echo "Upravit mainframe conditions v ~/.dotfiles/bin/ptssource"
+}
+
+function PostInstall () {
+	PrintWarning
+	SetHostname
+	#SetEnvironment
+	GetRPMSetup
+}
+
+#tisk napovedy
+if [ "$1" = "--help" -o "$#" = 0 ]; then
+	
+    print_help
+fi
+
+#zpracovani parametru
+while getopts "hiplr" optname 
+    do
+		case "$optname" in
+		"h" ) print_help; exit 0;;
+		"i" ) InstallRemoteSystem; exit 0;;
+		"p" ) PostInstall; exit 0;;
+		"l" ) MigrateLizard; exit 0;;
+		"r" ) SetEnvironment; exit 0;;
+		"?") echo "Unknown option $OPTARG"; print_help; exit 0 ;;
+		":") echo "No argument value for option $OPTARG" ; print_help ; exit 0;;
+		*) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
+    esac
+done
+
+exit 0

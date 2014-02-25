@@ -1,0 +1,66 @@
+#!/bin/bash
+
+source ~/.dotfiles/bin/ptssource
+
+if [ $ARCH != "x86_64" ]; then
+    echo "Do not run on i586"
+    exit 0
+fi
+
+#definice promennych
+HOMEDIR=~
+SRCPKGPATH=$HOMEDIR/rpms/$DISTRIBUTION/$VERSION/SRPMS
+WEBDIR=$HOMEDIR/repocontent/
+WEBLOG=$WEBDIR/"$DISTRIBUTION""$VERSION".html
+
+
+
+
+QUIET=""
+VERBROSE=""
+while getopts "hqfv" optname 
+    do
+        case "$optname" in
+            "h" ) print_help; exit 0;;
+            "q" ) QUIET=1;;
+            "v" ) VERBROSE=1;;
+            "?") echo -e "\n    Nespravne parametry, pouzijte napovedu"; print_help; exit 99 ;;
+	    ":") echo "No argument value for option $OPTARG" ; print_help ; exit 99;;
+	    *) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
+        esac
+done
+
+
+if [ $VERBROSE ] && [ $QUIET ]; then
+<------>echo "Spusten se vzajemne se vylucujicimi parametry -q a -v"
+<------>exit 0
+fi
+
+
+> $WEBLOG
+echo "<ul>" > $WEBLOG
+
+for PKG in "$SRCPKGPATH"/*.rpm; do
+    if [ $VERBROSE ]; then
+        echo Zpracovavam $PKG:
+    fi
+#    urpmq -i $PKG | egrep "Name|Version|Summary" | awk -F ' : ''{print $2}' | tr '\n' ' ' | read NAME VER SUMM
+    LINE=$(urpmq -i $PKG | egrep "Name|Version|Summary|Release" | awk -F ' : ' '{print $2}' | tr '\n' ' ')
+    echo $LINE | while read NAME VER OREL SUMM ; do
+        REL=$(echo $OREL | awk -F 'pts' '{print $1}'|  tr -d '.' )
+	if [ $VERBROSE ]; then
+            echo Name:    $NAME
+	    echo Version: $VER-$REL
+	    echo Summary: $SUMM
+	fi
+        echo "<li><b>$NAME</b> (<i>$VER-$REL</i>) $SUMM </li>" >> $WEBLOG
+	if [ ! $QUIET ]; then
+	    echo "<li><b>$NAME</b> (<i>$VER-$REL</i>) $SUMM </li>"
+	fi
+	if [ $VERBROSE ]; then
+	    echo "==="
+	fi
+    done
+done
+echo "</ul>" >> $WEBLOG
+

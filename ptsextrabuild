@@ -1,0 +1,68 @@
+#!/bin/bash
+
+#Funkce pro tisk nápovědy
+function print_help ()
+{
+echo "Posílá balíček jménem \"jmeno\" do buildsystému na nody \"servery\" a poté synchronizuje repozitář. 
+Uvádí se jméno SRPM souboru.
+
+    Pouziti: $0 servery jmeno
+
+Volby:
+    -h	Vypíše tuto nápovědu"
+    return 0
+}
+
+if [ $# -le 0 ]; then
+    print_help
+    exit 0
+fi
+if [ "$1" == "-h" ]; then
+    print_help
+    exit 0
+elif [ "$1" == "--help" ]; then
+    print_help
+    exit 0
+fi
+
+
+RPMDIR=/home/petos/rpm
+SPECDIR=$RPMDIR/SPECS
+COPYER="rsync -auvr --progress"
+BUILDSERVERS=""
+
+#echo $@
+if [ "$#" == "1" ]; then
+    BUILDSERVERS="mga-3-64 mga-3-32"
+else
+    while [ "$#" -gt "1" ]; do
+	BUILDSERVERS+=" $1"
+	shift
+    done
+fi
+    MNFRMNAMEPKG=$1
+
+PKGNAME=$(urpmq -i $MNFRMNAMEPKG | grep Name | grep : | awk '{print $3}' )
+
+echo "Prekladam $MNFRMNAMEPKG ($PKGNAME) na $BUILDSERVERS"
+sleep 2
+
+
+for SRV in $BUILDSERVERS ; do
+    echo -e "Provadim preklad na serveru $SRV"
+    ssh $SRV "rm -fr ~/tmp/*"
+    rsync -avur $MNFRMNAMEPKG $SRV:/home/petos/tmp/
+    ssh $SRV -t "sudo mount -a"
+    ssh $SRV "/home/petos/.dotfiles/bin/ptsbuild -i "/home/petos/tmp/$MNFRMNAMEPKG""
+    ssh $SRV -t "/home/petos/.dotfiles/bin/ptsbuild -r "$PKGNAME""
+    if [ $? != 0 ]; then 
+		echo "Chyba prekladu na node $SRV"
+	exit 1
+    fi
+done
+for SRV in $BUILDSERVERS ; do
+    echo -e "\nRepo $SRV:\n"
+    ssh $SRV "/home/petos/.dotfiles/bin/ptsmkrepo"
+done
+
+echo -e "----\n"

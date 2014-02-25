@@ -1,0 +1,39 @@
+#!/bin/bash
+
+
+#Funkce pro tisk nápovědy
+function print_help ()
+{
+echo -e "
+    Pouziti: $(basename $0) [-s] -c PRIKAZ
+        -h   vypise tuto napovedu
+        -s   spousti s pravy roota
+        -c PRIKAZ  na vsech nodech spusti PRIKAZ
+        -o  vypne vsechny stroje
+        "
+    return 0
+}
+
+while getopts "hsc:" optname 
+    do
+    case "$optname" in
+	"h" ) print_help; exit 0;;
+	"s" ) SUDO="sudo";;
+	"c" ) COMMAND="$OPTARG";;
+	"o" ) SUDO="sudo"; COMMAND="shutdown -h now & exit"; break;;
+	"?") echo -e "\n    Nespravne parametry, pouzijte napovedu"; print_help; exit 99 ;;
+	":") echo "No argument value for option $OPTARG" ; print_help ; exit 99;;
+        *) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
+    esac
+done
+
+if [ "$COMMAND" = "" ]; then
+    print_help; exit 0
+fi
+
+SERVERS="mga-2-32 mga-2-64 mga-3-32 mga-3-64 mga-4-32 mga-4-64"
+
+for SER in $SERVERS; do
+	echo -e "\n\n======\nPrikaz $COMMAND na $SER :"
+	ssh $SER -t "source ~/.path; $SUDO $COMMAND "
+done

@@ -1,0 +1,10 @@
+#!/bin/bash
+
+sudo /usr/sbin/urpmi.update -a
+
+sudo /usr/sbin/urpme devel- -a --auto
+
+sudo /usr/sbin/urpme --auto-orphans --auto
+
+sudo /usr/sbin/urpmi rpm-build rpmlint --auto
+#echo ahoj

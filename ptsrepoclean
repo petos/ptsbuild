@@ -1,0 +1,138 @@
+#!/bin/bash
+
+#Funkce pro tisk nápovědy
+function print_help ()
+{
+echo "
+    Pouziti: $(basename $0) [VOLBY]
+        -h   vypise tuto napovedu
+		-v	 upovidany mod
+        -f   rovnou balicky i odstrani
+        -q   nebude nic vypisovat na terminal"
+    return 0
+}
+
+function print_error() 
+{
+	echo "========================="
+	echo "Chyba pri porovnani verzi"
+	echo "Chyba pri zpracovani $1 vs $2"
+	echo "========================="
+	exit 99
+}
+
+
+HOMEDIR=~
+RPMDIR=$HOMEDIR/rpm
+
+source ~/.dotfiles/bin/ptssource
+
+#DISTRIBUTION="$(cat /etc/mandrake-release | awk '{print $1}' | tr 'M' 'm')"
+#VERSION="$(cat /etc/mandrake-release | awk '{print $3}')"
+#ARCH="$(uname --processor  | sed s/i686/i586/g)"
+
+REPODIR=$HOMEDIR/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"
+SRPMSDIR=$RPMDIR/SRPMS
+SRPMREPODIR=$HOMEDIR/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS
+
+TOREMOVE=$HOMEDIR/toclean
+ERRORLOG="$TOREMOVE".err
+
+> $TOREMOVE
+> $ERRORLOG
+
+
+FORCE=""
+QUIET=""
+VERBROSE=""
+
+while getopts "hqfv" optname 
+    do
+    case "$optname" in
+	"h" ) print_help; exit 0;;
+	"q" ) QUIET=1;;
+	"f" ) FORCE=1;;
+	"v" ) VERBROSE=1;;
+	"?") echo -e "\n    Nespravne parametry, pouzijte napovedu"; print_help; exit 99 ;;
+	":") echo "No argument value for option $OPTARG" ; print_help ; exit 99;;
+        *) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
+    esac
+done
+
+if [ $VERBROSE ] && [ $QUIET ]; then 
+	echo "Spusten se vzajemne se vylucujicimi parametry -q a -v"
+	exit 0
+fi
+
+OLDPACKAGENAME=""
+
+for REPO in $SRPMSDIR $SRPMREPODIR $REPODIR; do
+    for NEWPACKAGENAME in $REPO/*.rpm; do
+	if [ $VERBROSE ]; then
+		echo "Kontroluji $NEWPACKAGENAME"
+	fi
+        LINE=$(urpmq -i $NEWPACKAGENAME | egrep "Name|Version|Release" | awk '{print $3}' | tr '\n' ' ')
+    	NEWNAME=$(echo $LINE | awk '{print $1}')
+    	NEWVER=$(echo $LINE | awk '{print $2}' )
+    	NEWREL=$(echo $LINE | awk '{print $3}' | awk -F 'pts' '{print $1}')
+    	#pri prvnim behu mame prazdna data, proto naplnime OLDxxx a skocime na druhy balicek
+    	if [ ! $OLDPACKAGENAME ]; then 
+    	    OLDNAME=$NEWNAME
+            OLDVER=$NEWVER
+	    OLDREL=$NEWREL
+	    OLDPACKAGENAME=$NEWPACKAGENAME
+    	    continue 
+    	fi
+    	
+    	#jedna-li se o balicek se shodnym jmenem, jinak to nema cenu
+        if [ "$NEWNAME" = "$OLDNAME" ]; then
+			if [ $(dirname $NEWPACKAGENAME) = $(dirname $OLDPACKAGENAME ) ]; then
+				ptscompver -q $NEWVER $OLDVER
+				COMPVAL=$?
+				if [ $COMPVAL = 1 ]; then
+	#				echo "$NEWPACKAGENAME: $NEWVER > $OLDVER "
+					echo $OLDPACKAGENAME >> $TOREMOVE
+					if [ ! $QUIET ]; then echo -e "Odebrat $OLDPACKAGENAME , nechat $NEWPACKAGENAME \n\n"; fi
+					if [ $FORCE ]; then rm -f $OLDPACKAGENAME; fi
+				elif [ $COMPVAL = 0 ]; then
+	#                               echo "$NEWPACKAGENAME: $NEWVER = $OLDVER "
+					ptscompver -q $NEWREL $OLDREL
+					COMPVALREL=$?
+					if [ $COMPVALREL = 1 ]; then
+	#				    echo "$NEWPACKAGENAME: $NEWREL > $OLDREL "
+						echo $OLDPACKAGENAME >> $TOREMOVE
+						if [ ! $QUIET ]; then echo -e "Odebrat $OLDPACKAGENAME , nechat $NEWPACKAGENAME \n\n"; fi
+						if [ $FORCE ]; then rm -f $OLDPACKAGENAME; fi
+					elif [ $COMPVALREL = 255 ]; then
+	#				    echo "$NEWPACKAGENAME: $NEWREL < $OLDREL "
+						echo $NEWPACKAGENAME >> $TOREMOVE
+						if [ ! $QUIET ]; then echo -e "Odebrat $NEWPACKAGENAME , nechat $OLDPACKAGENAME \n\n"; fi
+						if [ $FORCE ]; then rm -f $NEWPACKAGENAME ; fi
+					elif [ $COMPVALREL = 0 ]; then
+	#				    echo "$NEWPACKAGENAME: $NEWREL = $OLDREL "
+	#					echo -e "Shodne verze i release \n  $OLDPACKAGENAME vs \n  $NEWPACKAGENAME \n\n"
+						echo $NEWPACKAGENAME >> $ERRORLOG
+						echo $OLDPACKAGENAME >> $ERRORLOG
+						print_error $OLDPACKAGENAME $NEWPACKAGENAME
+						exit 99
+					else 
+	#					Neurcita chyba
+						print_error $OLDPACKAGENAME $NEWPACKAGENAME
+					fi
+				elif [ $COMPVAL = 255 ]; then
+	#				echo "$NEWPACKAGENAME: $OLDVER > $NEWVER "
+					echo $NEWPACKAGENAME >> $TOREMOVE
+					if [ ! $QUIET ]; then echo -e "Odebrat $NEWPACKAGENAME , nechat $OLDPACKAGENAME\n\n"; fi
+					if [ $FORCE ]; then rm -f $NEWPACKAGENAME; fi
+				else
+	#				Neurcita chyba
+					print_error $OLDPACKAGENAME $NEWPACKAGENAME
+				fi
+			fi
+        fi
+        OLDNAME=$NEWNAME
+        OLDVER=$NEWVER
+        OLDREL=$NEWREL
+        OLDPACKAGENAME=$NEWPACKAGENAME
+    done
+done

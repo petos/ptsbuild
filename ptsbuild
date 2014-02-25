@@ -1,0 +1,161 @@
+#!/bin/bash
+
+#Funkce pro tisk nápovědy
+function print_help ()
+{
+echo "Posílá balíček jménem \"jmeno\" do buildsystému a poté synchronizuje repozitář. 
+Uvádí se jméno SPEC souboru bez přípony .spec!
+
+    Pouziti: $(basename 0) [volby] jmeno
+
+Volby:
+    -h	Vypíše tuto nápovědu
+    -i  Import SRPM balíčku. Smaže obsah ~/rpm/SOURCES, BUILD, BUILDROOT a následně
+	importuje SRC.RPM do systému
+    -c	Nebude čistit systém od -devel balíčků (pouze master-node)
+    -C	Nebude čistit systém od -devel balíčků (zadny z nodu)
+    -r	Nebude se synchronizovat repozitář
+    -t	Test: pouze se otestuje, jestli je možné balíček přeložit
+	Nebude se čistit systém ani synchronizovat repozitář
+	Odpovídá použití mdvpushpkg -r -C
+    -w	Nevytvari seznam souboru v repozitari na net
+    -g  Parametr pri buildu velke hry
+    -x REPO   build do zvlastniho repozitare REPO "
+    return 0
+}
+
+
+function import-fnc () {
+	rm -fr $RPMDIR/BUILD/*
+	rm -fr $RPMDIR/BUILDROOT/*
+	rm -fr $RPMDIR/SOURCES/*
+    if [ "$DISTRIBUTION" = "mandriva" ]; then
+		rpm -ivh --nodeps "$1"
+    else
+		rpm -ivh "$1"
+    fi
+		echo -e "\n----\nBalíček importován\n----"
+		exit 0
+}
+
+if [ $# -le 0 ]; then
+  print_help
+  exit 0
+fi
+
+RPMDIR=~/rpm
+SPECDIR=$RPMDIR/SPECS
+NoSync=0
+NoClean=0
+IMPORT=0
+WEBLIST=''
+
+TEST=0
+EXTRA=""
+EXTRANAME=""
+
+
+while getopts "htrci:gx:Cw" optname 
+    do
+    case "$optname" in
+	"h" ) print_help; exit 0;;
+	"i" ) import-fnc $OPTARG;;
+	"t" ) TEST=1; NoSync=1; NoClean=1; NC="-C";;
+	"r" ) NoSync=1;;
+	"c" ) NoClean=1;;
+	"C" ) NoClean=1; NC="-C";;
+	"w" ) WEBLIST="-w";;
+	"g" ) EXTRA="-g";;
+	"x" ) EXTRA="-x"; EXTRANAME="$OPTARG" ;;
+	"?") echo "Unknown option $OPTARG"; print_help; exit 0 ;;
+	":") echo "No argument value for option $OPTARG" ; print_help ; exit 0;;
+        *) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
+    esac
+done
+
+while [ "$#" != "1" ]; do shift ; done
+PKGNAME=$1
+
+source ~/.dotfiles/bin/ptssource
+
+
+if [ ! -e $SPECDIR/$PKGNAME.spec ]; then
+    echo "Neexistuje SPEC spoubor $PKGNAME.spec v $SPECDIR. Je správně zadán parametr?"
+    exit 0
+fi
+
+
+echo -e "\n----\nZahajuji preklad na nodu `hostname`\n----"
+
+#sed -i s/"%define distsuffix plf"//g $RPMDIR/SPECS/$PKGNAME.spec
+rpmlint $SPECDIR/$PKGNAME.spec
+EXITCODE=$?
+if [ $EXITCODE != 0 ]; then
+    echo "----\nChyba ve SPEC balíčku\n----"
+    exit 0
+fi
+
+echo -e "\n----\n"
+
+if [ "$NoClean" = "0" ]; then 
+    sudo /home/petos/.dotfiles/bin/ptscleanbuildpkgs
+    sudo /usr/sbin/urpmi --no-verify-rpm $SPECDIR/$PKGNAME.spec --auto
+    echo -e "----\nHOTOVO, začíná se překlad na nodu `hostname`\n----"
+else
+    sudo /usr/sbin/urpmi --no-verify-rpm $SPECDIR/$PKGNAME.spec --auto
+    echo -e "----\nHOTOVO, začíná se překlad na nodu `hostname`\n----"
+fi
+
+rm -fr $SPECDIR/../BUILD/*
+
+rpmbuild -ba $SPECDIR/$PKGNAME.spec
+EXITCODE=$?
+if [ $EXITCODE != 0 ]; then
+    echo -e "----\nChyba při sestavení SPEC balíčku na nodu `hostname`\n----"
+    exit 1
+fi
+
+echo -e "----\nPřeklad hotov na nodu `hostname`"
+
+if [ $TEST = 1 ]; then
+	exit 0
+fi
+
+if [ "$MAINFRAME" = "1" ]; then
+
+    if [ "$EXTRA" = "-g" ] ; then
+        #jen mga-3-32
+		BUILDSERVERS="mga-$VERSION-32"
+	else
+    	    BUILDSERVERS="mga-3-32  mga-2-64 mga-2-32 mga-4-64 mga-4-32"
+    fi
+
+
+    MNFRMNAMEPKG=$(find /home/petos/rpm/SRPMS/ -type f -printf '%TY-%Tm-%Td %TT %p\n' | sort | awk '{print $3}' | tail -1 | grep "$PKGNAME" | awk -F 'SRPMS/' '{print $2}' )
+    for SRV in $BUILDSERVERS ; do
+	echo -e "Provadim preklad na serveru $SRV"
+        ssh $SRV "rm -fr ~/tmp/*"
+        rsync -avur /home/petos/rpm/SRPMS/"$MNFRMNAMEPKG" $SRV:/home/petos/tmp/
+        ssh $SRV -t "sudo mount -a"
+        ssh $SRV "/home/petos/.dotfiles/bin/ptsbuild -i "/home/petos/tmp/$MNFRMNAMEPKG""
+        ssh $SRV -t "/home/petos/.dotfiles/bin/ptsbuild -r "$NC" "$PKGNAME""
+    	    if [ $? != 0 ]; then 
+    		echo "Chyba prekladu na node $SRV"
+    		exit 1
+    	    fi
+    done
+fi
+
+
+if [ "$NoSync" = "0" ]; then
+    echo -e "----\nSynchronizuji repozitář\n----"
+    if [ "$MAINFRAME" = "1" ]; then
+	for SRV in $BUILDSERVERS ; do
+	    echo -e "\nRepo $SRV:\n"
+            ssh $SRV "/home/petos/.dotfiles/bin/ptsmkrepo "$WEBLIST" "$EXTRA" "$EXTRANAME""
+	done
+    fi
+    echo -e "----\nMainFrame -- START\n"
+    ptsmkrepo "$WEBLIST" "$EXTRA" "$EXTRANAME"
+fi
+echo -e "----\n"

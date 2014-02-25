@@ -1,0 +1,16 @@
+DISTRIBUTION="$(cat /etc/mandrake-release | awk '{print $1}' | tr 'M' 'm')"
+
+if [ "$DISTRIBUTION" = "mageia" ]; then
+    VERSION="$(cat /etc/mandrake-release | awk '{print $3}')"
+elif [ "$DISTRIBUTION" = "mandriva" ]; then
+    VERSION="$(cat /etc/mandrake-release | awk '{print $4}')"
+else
+	echo "unsupported distribution"
+    exit 1
+fi
+
+COPYER="rsync -auvr"
+ARCH="$(uname --processor  | sed s/i686/i586/g)"
+if [ "$ARCH" = "x86_64" -a "$DISTRIBUTION" = "mageia" -a "$VERSION" = "3"  ]; then
+    MAINFRAME=1
+fi

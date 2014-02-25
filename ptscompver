@@ -1,0 +1,76 @@
+#!/bin/bash
+
+function print_help () {
+echo "Program pro porovnani dvou verzi
+   Pouziti: $(basename $0) [-q] VER1 VER2
+        	-h -- vypise napovedu
+        	--help -- vypise napovedu
+        	-q -- tichy rezim, 
+        	      nebude vypisovat nic na terminal
+            
+        Navratove hodnoty:
+              \$? = 0     VER1 == VER2
+              \$? = 1     VER1 > VER2
+              \$? = 255   VER1 < VER2
+              \$? = 99	  ERR"
+exit 0
+}
+
+if [ "$1" = "-h" ]; then
+    print_help
+elif [ "$1" = "--help" ]; then
+    print_help
+elif [ "$1" = "-q" ]; then
+    QUIET=1
+    shift
+fi
+if [ $# != 2 ]; then
+    echo "Musi byt postoupeny dva parametry, nebo tri s parametrem -q. Pro help napiste: $0 -h"
+    exit 99
+fi
+
+#echo $1 $2
+
+############ #zahozeni tecek a zamena svn, alpha, beta, RC za cisla
+LEFT=$(echo $1  | sed s/svn/0.1./g | sed s/alpha/0.2./g | sed s/beta/0.3./g | sed s/[rR][cC]/0.4./g |  tr '.'  ' ' )
+RIGHT=$(echo $2 | sed s/svn/0.1./g | sed s/alpha/0.2./g | sed s/beta/0.3./g | sed s/[rR][cC]/0.4./g |  tr '.'  ' ' )
+############
+#echo $LEFT $RIGHT
+
+if [ -n "$(echo $LEFT | grep [a-zA-Z])" -o -n "$(echo $RIGHT | grep [a-zA-Z])" ]; then 
+    if [ ! $QUIET ]; then echo "Nepripustny znak"; fi
+    exit 99
+fi
+
+LEFT_ARR=($LEFT)
+RIGHT_ARR=($RIGHT)
+
+LEFTLEN=${#LEFT_ARR[@]}
+RIGHTLEN=${#RIGHT_ARR[@]}
+
+
+if [ $LEFTLEN -ge $RIGHTLEN ]; then 
+    ARR_SIZE=$LEFTLEN
+else
+    ARR_SIZE=$RIGHTLEN
+fi
+
+let ARR_SIZE--
+
+for ARR_ITEM in $(seq 0 $ARR_SIZE); do
+    if [ ! ${LEFT_ARR[$ARR_ITEM]} ]; then LEFT_ARR[$ARR_ITEM]=0; fi
+    if [ ! ${RIGHT_ARR[$ARR_ITEM]} ]; then RIGHT_ARR[$ARR_ITEM]=0; fi
+#echo  item $ARR_ITEM : ${LEFT_ARR[$ARR_ITEM]} x ${RIGHT_ARR[$ARR_ITEM]}
+    if [ ${LEFT_ARR[$ARR_ITEM]} = ${RIGHT_ARR[$ARR_ITEM]} ]; then 
+		continue
+    elif [ ${LEFT_ARR[$ARR_ITEM]} -gt ${RIGHT_ARR[$ARR_ITEM]} ]; then 
+		if [ ! $QUIET ]; then echo "$1 > $2" ; fi
+		exit 1
+	elif [ ${LEFT_ARR[$ARR_ITEM]} -lt ${RIGHT_ARR[$ARR_ITEM]} ]; then 
+		if [ ! $QUIET ]; then echo "$1 < $2" ; fi
+		exit 255
+    fi
+done
+
+if [ ! $QUIET ]; then echo "$1 = $2" ;fi
+exit 0

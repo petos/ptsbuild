@@ -1,0 +1,149 @@
+#!/bin/bash
+
+#Funkce pro tisk nápovědy
+function print_help ()
+{
+echo "Vytvori repozitar v ~/
+
+    Pouziti: $(basename 0) [volby] jmeno
+
+Volby:
+    -h	Vypíše tuto nápovědu
+    -g  Parametr pri buildu velke hry
+    -w  Nedela seznam na web
+    -x REPO   repozitar REPO "
+    return 0
+}
+
+
+source ~/.dotfiles/bin/ptssource
+
+source ~/.ptsftpcredentials
+
+MKWEBLIST=1
+while getopts "hx:gw" optname 
+    do
+    case "$optname" in
+	"h" ) print_help; exit 0;;
+	"g" ) EXTRA="1"; DISTRIBUTION="games"; VERSION="." ; MAINFRAME=0;; 
+	"x" ) EXTRA="1"; VERSION="$VERSION/$OPTARG"; EXTRANAME=$OPTARG; MAINFRAME=0 ;;
+	"w" ) MKWEBLIST="0";;
+	"?") echo "Unknown option $OPTARG"; print_help; exit 0 ;;
+	":") echo "No argument value for option $OPTARG" ; print_help ; exit 0;;
+        *) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
+    esac
+done
+
+echo -e "Spusten ptsmkrepo na $(hostname).\n\tDistro: $DISTRIBUTION\n\tVerze: $VERSION\n\tArchitektura: $ARCH\n"
+
+
+echo -e "Prijate parametry:"
+echo -e "\tMainframe = $MAINFRAME"
+echo -e "\tZvlastni repozitar= $EXTRA -- $EXTRANAME"
+
+if [ ! -d ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH" ]; then
+echo -e "Neexistuje "$DISTRIBUTION"/"$VERSION"/"$ARCH", vytvarim\n"
+    mkdir -p ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"
+fi
+
+if [ "$ARCH" = "x86_64" -a ! -d ~/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS ]; then
+echo -e "Neexistuje "$DISTRIBUTION"/"$VERSION"/SRPMS, vytvarim\n"
+    mkdir -p ~/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS
+fi
+
+if [ "$MAINFRAME" = "1" ]; then
+    if [ ! -d ~/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS ]; then
+	echo -e "Neexistuje "$DISTRIBUTION"/"$VERSION"/SRPMS, vytvarim\n"
+	mkdir -p ~/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS
+    fi
+    if [ ! -d ~/rpms/"$DISTRIBUTION"/"$VERSION"/SPECS ]; then
+	echo -e "Neexistuje "$DISTRIBUTION"/"$VERSION"/SPECS, vytvarim\n"
+	mkdir -p ~/rpms/"$DISTRIBUTION"/"$VERSION"/SPECS
+    fi
+    if [ ! -d ~/rpms/"$DISTRIBUTION"/esmska ]; then
+        echo -e "Neexistuje esmska, vytvarim\n"
+        mkdir -p ~/rpms/"$DISTRIBUTION"/esmska
+    fi
+    if [ ! -d ~/rpms/"$DISTRIBUTION"/wibom ]; then
+        echo -e "Neexistuje wibom, vytvarim\n"
+        mkdir -p ~/rpms/"$DISTRIBUTION"/wibom
+    fi
+fi
+
+
+echo -e "Mazání nepotřebných souborů"
+rm -fr ~/rpm/RPMS/"$ARCH"/*debug*
+rm -fr ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"/media_info
+
+
+echo -e "Přenosy souborů"
+#mkdir ~/mandriva/"$VERSION"/i586/
+mv -v ~/rpm/RPMS/"$ARCH"/* ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"
+mv -v ~/rpm/RPMS/noarch/* ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"
+
+echo "Generování hdlistu"
+genhdlist2  ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH" --xml-info --clean --nolock
+
+if [ $ARCH = x86_64 ]; then
+    #SRPMS
+    echo -e "Presouvam SRPMs\n"
+    mv -v ~/rpm/SRPMS/* ~/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS/
+elif [ $ARCH = i586 ]; then
+	rm -f ~/rpm/SRPMS/*
+fi
+
+if [ "$MAINFRAME" = "1" ]; then
+#SPECS
+echo -e "Kopiruji SPEC soubory\n"
+    $COPYER ~/rpm/SPECS/* ~/rpms/"$DISTRIBUTION"/"$VERSION"/SPECS/
+
+#Esmska
+echo -e "Generuji repozitar Esmsky\n"
+    $COPYER ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"/esmska* ~/rpms/"$DISTRIBUTION"/esmska/
+    genhdlist2 ~/rpms/"$DISTRIBUTION"/esmska --xml-info --clean  --nolock
+
+#Wibom
+echo -e "Generuji repozitar Wibom\n"
+    $COPYER ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"/wibom* ~/rpms/"$DISTRIBUTION"/wibom/
+    $COPYER ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"/trash-cli* ~/rpms/"$DISTRIBUTION"/wibom/
+    $COPYER ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"/python-unipath* ~/rpms/"$DISTRIBUTION"/wibom/
+    genhdlist2 ~/rpms/"$DISTRIBUTION"/wibom --xml-info --clean  --nolock
+
+#Flightgear
+#echo -e "Generuji FlightGear repozitar"
+#   genhdlist2 ~/flightgear --xml-info --clean  --nolock
+fi
+
+#Generování seznamů
+ls  ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH" | grep rpm >  ~/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"/seznam.txt
+
+#generovani obsahu www stranky
+if [ $MKWEBLIST = "1" ]; then
+    if [ $ARCH = "x86_64" ]; then
+        /home/petos/.dotfiles/bin/ptsmkweb
+    fi
+fi
+#Aktualizace na webu
+echo -e "Synchronizace souboru s obsahem repozitare"
+#	lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "put --verbose /home/petos/rpms/"$DISTRIBUTION""$VERSION""$ARCH".html rpm && bye" petos.cz
+echo -e "Synchronizuji repozitar $DISTRIBUTION - $VERSION - $ARCH\n"
+	lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH" rpm/"$DISTRIBUTION"/"$VERSION"/"$ARCH" && bye" petos.cz
+
+if [ "$MAINFRAME" = "1" ]; then
+
+echo -e "Synchronizace SPEC souboru\n"
+    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SPECS rpm/"$DISTRIBUTION"/"$VERSION"/SPECS && bye" petos.cz
+echo -e "Synchronizace SRPMS\n"
+    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS rpm/"$DISTRIBUTION"/"$VERSION"/SRPMS && bye" petos.cz
+
+echo -e "Synchronizuji web \n"
+	lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/repocontent rpm/repocontent && bye" petos.cz
+
+echo -e "Repozitare wibom a esmska"
+    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/wibom rpm/wibom && bye" petos.cz
+    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/esmska rpm/esmska && bye" petos.cz
+    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/wibom mandriva/wibom && bye" petos.cz
+    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/esmska mandriva/esmska && bye" petos.cz
+    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/flightgear rpm/flightgear && bye" petos.cz
+fi
+
