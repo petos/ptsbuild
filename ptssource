@@ -14,3 +14,6 @@ ARCH="$(uname --processor  | sed s/i686/i586/g)"
 if [ "$ARCH" = "x86_64" -a "$DISTRIBUTION" = "mageia" -a "$VERSION" = "3"  ]; then
     MAINFRAME=1
 fi
+
+PRESETUPBUILDSERVERS="mga-3-32 mga-4-64 mga-4-32"
+

@@ -122,14 +122,12 @@ if [ $TEST = 1 ]; then
 fi
 
 if [ "$MAINFRAME" = "1" ]; then
-
     if [ "$EXTRA" = "-g" ] ; then
         #jen mga-3-32
 		BUILDSERVERS="mga-$VERSION-32"
 	else
-    	    BUILDSERVERS="mga-3-32  mga-2-64 mga-2-32 mga-4-64 mga-4-32"
+    	    BUILDSERVERS="$PRESETUPBUILDSERVERS"
     fi
-
 
     MNFRMNAMEPKG=$(find /home/petos/rpm/SRPMS/ -type f -printf '%TY-%Tm-%Td %TT %p\n' | sort | awk '{print $3}' | tail -1 | grep "$PKGNAME" | awk -F 'SRPMS/' '{print $2}' )
     for SRV in $BUILDSERVERS ; do
@@ -140,8 +138,8 @@ if [ "$MAINFRAME" = "1" ]; then
         ssh $SRV "/home/petos/.dotfiles/bin/ptsbuild -i "/home/petos/tmp/$MNFRMNAMEPKG""
         ssh $SRV -t "/home/petos/.dotfiles/bin/ptsbuild -r "$NC" "$PKGNAME""
     	    if [ $? != 0 ]; then 
-    		echo "Chyba prekladu na node $SRV"
-    		exit 1
+				echo "Chyba prekladu na node $SRV"
+				exit 1
     	    fi
     done
 fi
