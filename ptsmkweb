@@ -44,6 +44,9 @@ for PKG in "$SRCPKGPATH"/*.rpm; do
     if [ $VERBROSE ]; then
         echo Zpracovavam $PKG:
     fi
+    if [ ! $( echo "$PKG" | grep -v ^lib[^r] ) ]; then
+		continue
+	fi
 #    urpmq -i $PKG | egrep "Name|Version|Summary" | awk -F ' : ''{print $2}' | tr '\n' ' ' | read NAME VER SUMM
     LINE=$(urpmq -i $PKG | egrep "Name|Version|Summary|Release" | awk -F ' : ' '{print $2}' | tr '\n' ' ')
     echo $LINE | while read NAME VER OREL SUMM ; do
