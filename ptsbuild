@@ -34,6 +34,7 @@ function import-fnc () {
     else
 		rpm -ivh "$1"
     fi
+    sed -i s/'\.\*$'/'*'/g "$SPECDIR"/*
 		echo -e "\n----\nBalíček importován\n----"
 		exit 0
 }
