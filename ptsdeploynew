@@ -38,12 +38,13 @@ function SetEnvironment {
 
 function print_help () {
 echo "Vytvori deploy pro novy system v BS
-	Pouziti: $(basename $0) [-hip] 
+	Pouziti: $(basename $0) [-hipl] 
 		-h -- vypise napovedu
 		--help -- vypise napovedu
 		-i -- instalace PTS-tools na vzdaleny node
 		-p -- Post-Instalace - k spusteni na jiz nastavenem nodu
 		-r -- znovu prenastavi prostredi BASH
+		-l -- info k migraci lizardu
 "
     exit 0
 }
