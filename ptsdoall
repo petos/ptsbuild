@@ -31,7 +31,7 @@ if [ "$COMMAND" = "" ]; then
     print_help; exit 0
 fi
 
-SERVERS="mga-3-32 mga-3-64 mga-4-32 mga-4-64"
+SERVERS="mga-4-32 mga-4-64"
 
 for SER in $SERVERS; do
 	echo -e "\n\n======\nPrikaz $COMMAND na $SER :"

@@ -126,24 +126,41 @@ fi
 #Aktualizace na webu
 echo -e "Synchronizace souboru s obsahem repozitare"
 #	lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "put --verbose /home/petos/rpms/"$DISTRIBUTION""$VERSION""$ARCH".html rpm && bye" petos.cz
-echo -e "Synchronizuji repozitar $DISTRIBUTION - $VERSION - $ARCH\n"
-	lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH" rpm/"$DISTRIBUTION"/"$VERSION"/"$ARCH" && bye" petos.cz
+    echo -e "Synchronizuji repozitar $DISTRIBUTION - $VERSION - $ARCH\n"
+	if [ $UPLOADER = "ftp" ]; then
+        lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH" rpm/"$DISTRIBUTION"/"$VERSION"/"$ARCH" && bye" petos.cz
+    elif [ $UPLOADER = "rsync" ]; then
+        $RSYNCCMD /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/"$ARCH"/* "$RSYNCDEST"/"$DISTRIBUTION"/"$VERSION"/"$ARCH" 
+    fi
 
 if [ "$MAINFRAME" = "1" ]; then
 
-echo -e "Synchronizace SPEC souboru\n"
-    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SPECS rpm/"$DISTRIBUTION"/"$VERSION"/SPECS && bye" petos.cz
-echo -e "Synchronizace SRPMS\n"
-    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS rpm/"$DISTRIBUTION"/"$VERSION"/SRPMS && bye" petos.cz
+    echo -e "Synchronizace SPEC souboru\n"
+    if [ $UPLOADER = "ftp" ]; then
+        lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SPECS rpm/"$DISTRIBUTION"/"$VERSION"/SPECS && bye" petos.cz
+    elif [ $UPLOADER = "rsync" ]; then
+        $RSYNCCMD /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SPECS/* "$RSYNCDEST"/"$DISTRIBUTION"/"$VERSION"/SPECS
+    fi
+    
+    echo -e "Synchronizace SRPMS\n"
+    if [ $UPLOADER = "ftp" ]; then
+        lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS rpm/"$DISTRIBUTION"/"$VERSION"/SRPMS && bye" petos.cz
+    elif [ $UPLOADER = "rsync" ]; then
+        $RSYNCCMD /home/petos/rpms/"$DISTRIBUTION"/"$VERSION"/SRPMS/* "$RSYNCDEST"/"$DISTRIBUTION"/"$VERSION"/SRPMS
+    fi
 
-echo -e "Synchronizuji web \n"
-	lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/repocontent rpm/repocontent && bye" petos.cz
-
-echo -e "Repozitare wibom a esmska"
-    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/wibom rpm/wibom && bye" petos.cz
-    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/esmska rpm/esmska && bye" petos.cz
-    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/wibom mandriva/wibom && bye" petos.cz
-    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/esmska mandriva/esmska && bye" petos.cz
-    lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/flightgear rpm/flightgear && bye" petos.cz
+    echo -e "Synchronizuji web \n"
+    if [ $UPLOADER = "ftp" ]; then
+        lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/repocontent rpm/repocontent && bye" petos.cz
+    elif [ $UPLOADER = "rsync" ]; then
+        $RSYNCCMD /home/petos/repocontent/* "$RSYNCDEST"/repocontent
+    fi
+    
+    #~ echo -e "Repozitare wibom a esmska"
+    #~ lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/wibom rpm/wibom && bye" petos.cz
+    #~ lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/esmska rpm/esmska && bye" petos.cz
+    #~ lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/wibom mandriva/wibom && bye" petos.cz
+    #~ lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/"$DISTRIBUTION"/esmska mandriva/esmska && bye" petos.cz
+    #~ lftp -u "$FTPUSERNAME","$FTPPASSWD" -e "mirror --reverse --delete --only-newer --verbose /home/petos/rpms/flightgear rpm/flightgear && bye" petos.cz
 fi
 
