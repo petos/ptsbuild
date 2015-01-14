@@ -115,7 +115,7 @@ if [ $EXITCODE != 0 ]; then
     echo -e "----\nChyba při sestavení SPEC balíčku na nodu `hostname`\n----"
     exit 1
 fi
-
+ptssignall
 echo -e "----\nPřeklad hotov na nodu `hostname`"
 
 if [ $TEST = 1 ]; then
@@ -142,6 +142,7 @@ if [ "$MAINFRAME" = "1" ]; then
 				echo "Chyba prekladu na node $SRV"
 				exit 1
     	    fi
+	ssh $SRV "/home/petos/.dotfiles/bin/ptssignall"
     done
 fi
 
