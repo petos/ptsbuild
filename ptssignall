@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#Funkce pro tisk nápovědy
+function print_help ()
+{
+echo "Sign all build packages
+
+    Pouziti: $(basename 0)
+"
+    return 0
+}
+
+while getopts "h" optname 
+    do
+    case "$optname" in
+	"h" ) print_help; exit 0;;
+        *) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
+    esac
+done
+
+source ~/.dotfiles/bin/ptssource
+source ~/.ptsftpcredentials
+
+for FILE in $(find ~/rpm/RPMS -type f); do
+    echo Signing $FILE
+    ptssign $SIGNPWD $FILE > /dev/null
+done
+echo "All signed"
+exit 0
