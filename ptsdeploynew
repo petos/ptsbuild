@@ -113,10 +113,9 @@ function InstallRemoteSystem {
 	
 	echo "Kopiruji SSH klic na vzdaleny server"
 	scp -r ~/.ssh "$RUSER"@"$RIPADDR":~
-
+	scp -r ~/.gnupg "$RUSER"@"$RIPADDR":~
 	
-
-	echo "Upravuji /etc/fstab"
+	#echo "Upravuji /etc/fstab"
 	echo "Instaluji NFS"
 	ssh -t $RUSER@$RIPADDR "sudo urpmi nfs-utils --auto"
 	#tvorba adresaru
@@ -156,7 +155,7 @@ function GetRPMSetup {
 	scp lizard:~/.rpmmacros .
 	mkdir -p ~/rpm/{RPMS/noarch,SOURCES,SRPMS,SPECS,tmp}
 	ln -s ~/rpms/BUILD ~/rpm/BUILD
-	sudo urpmi --auto rsync rpm-build spec-helper libtool rpmlint rpmlint-mageia-policy rpm-sign mc
+	sudo urpmi --auto rsync rpm-build spec-helper libtool rpmlint rpmlint-mageia-policy rpm-sign mc expect
 }
 
 function MigrateLizard () {
