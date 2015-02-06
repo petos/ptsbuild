@@ -20,6 +20,7 @@ done
 
 source ~/.dotfiles/bin/ptssource
 source ~/.ptsftpcredentials
+source ~/.bashrc
 
 for FILE in $(find ~/rpm/RPMS -type f); do
     echo Signing $FILE
