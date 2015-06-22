@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#Funkce pro tisk nápovědy
+#Funkce pro tisk napovedy
 function print_help ()
 {
 echo "
@@ -46,13 +46,14 @@ FORCE=""
 QUIET=""
 VERBROSE=""
 
-while getopts "hqfv" optname 
+while getopts "hqfvs:" optname 
     do
     case "$optname" in
 	"h" ) print_help; exit 0;;
 	"q" ) QUIET=1;;
 	"f" ) FORCE=1;;
 	"v" ) VERBROSE=1;;
+	"s" ) SKIPPATTERN="$OPTARG";;
 	"?") echo -e "\n    Nespravne parametry, pouzijte napovedu"; print_help; exit 99 ;;
 	":") echo "No argument value for option $OPTARG" ; print_help ; exit 99;;
         *) echo "Unknown error while processing options"; exit 1 ;; #tohle by nemělo nastat
@@ -73,6 +74,12 @@ for REPO in $SRPMSDIR $SRPMREPODIR $REPODIR; do
 	fi
         LINE=$(urpmq -i $NEWPACKAGENAME | egrep "Name|Version|Release" | awk '{print $3}' | tr '\n' ' ')
     	NEWNAME=$(echo $LINE | awk '{print $1}')
+	
+	if [ "$SKIPPATTERN" ] && ( echo "$NEWNAME" | grep "$SKIPPATTERN" >/dev/null ); then 
+	    echo "$NEWNAME is skipped due to -s $SKIPPATTERN"
+	    continue
+	fi
+	
     	NEWVER=$(echo $LINE | awk '{print $2}' )
     	NEWREL=$(echo $LINE | awk '{print $3}' | awk -F 'pts' '{print $1}')
     	#pri prvnim behu mame prazdna data, proto naplnime OLDxxx a skocime na druhy balicek
