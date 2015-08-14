@@ -18,7 +18,7 @@ function PrintWarning {
 	
 	POZOR! "
 	
-	if [ ! -d /home/petos/rpms ] || ( ! mountpoint -q /home/petos/rpms) || [ ! -h /home/petos/.dotfiles ] || [ ! -h /home/petos/repocontent ]; then
+	if [ ! -d /home/petos/rpms ] || ( ! mountpoint -q /home/petos/rpms) || ( ! mountpoint -q /home/petos/ftprepos ) || [ ! -h /home/petos/.dotfiles ] || [ ! -h /home/petos/repocontent ]; then
 		echo "Vypada to, ze tento system neni pripraven"
 		echo "/home/petos/rpms neexistuje a neni to mountpoint"
 		echo "Prvne spustit \"$(basename $0) -i\" pro instalaci tohoto systemu!"
@@ -121,15 +121,18 @@ function InstallRemoteSystem {
 	#tvorba adresaru
 	echo "Instaluji adresarovou strukturu"
 	ssh $RUSER@$RIPADDR "mkdir -p /home/petos/rpms"
+	ssh $RUSER@$RIPADDR "mkdir -p /home/petos/ftprepos"
 	#uprava fstab
 	echo "Upravuji /etc/fstab"
 	SudoRun $RUSER $RIPADDR "echo \"ds:/volume1/repos/ /home/petos/rpms/ nfs defaults,auto,vers=3 0 0\" >> /etc/fstab" 
+	SudoRun $RUSER $RIPADDR "echo \"ds:/volume1/ftprepos/ /home/petos/ftprepos/ nfs defaults,auto,vers=3 0 0\" >> /etc/fstab" 
 	#pripojeni NFS disku
 	echo "Pripojuji NFS disky"
 	ssh -t $RUSER@$RIPADDR "sudo mount -a"
 	#uprava prav
 	echo "Upravuji prava"
 	SudoRun $RUSER $RIPADDR "chown $RUSER:$RUSER /home/petos/rpms"
+	SudoRun $RUSER $RIPADDR "chown $RUSER:$RUSER /home/petos/ftprepos"
 	#tvorba symlinku
 	echo "Vytvarim symlinky"
 	ssh $RUSER@$RIPADDR "ln -s /home/petos/rpms/PTSSYSTEM /home/petos/.dotfiles"
