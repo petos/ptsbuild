@@ -90,12 +90,10 @@ function InstallRemoteSystem {
 	
 	echo "Priprava deploymentu na vzdalenem systemu"
 	
-	RIPADDRPRE=$(/sbin/ifconfig | grep -A3 eth0 | grep -w inet | awk '{print $2}' | awk -F ':' '{print $2}' | awk -F '.' '{print $1"."$2"."$3"."}' )
-	
 	while [ "$RIPADDREXT" = "" ]; do
-		read -p "Zadejte posledni octet IP adresy vzdaleneho serveru: $RIPADDRPRE" RIPADDREXT
+		read -p "Zadejte IP adresu nebo DNS hostname: $RIPADDRPRE" RIPADDREXT
 	done
-	RIPADDR="$RIPADDRPRE$RIPADDREXT"
+	RIPADDR="$RIPADDREXT"
 	RUSER=`whoami`
 	
 	while [ "$RCONFIRM" != "ano" ]; do
@@ -114,10 +112,14 @@ function InstallRemoteSystem {
 	echo "Kopiruji SSH klic na vzdaleny server"
 	scp -r ~/.ssh "$RUSER"@"$RIPADDR":~
 	scp -r ~/.gnupg "$RUSER"@"$RIPADDR":~
+	scp  ~/.ptsftpcredentials "$RUSER"@"$RIPADDR":~
+	
+	scp ~/.rpmmacros "$RUSER"@"$RIPADDR":~
+	scp ~/.rpmrc "$RUSER"@"$RIPADDR":~
 	
 	#echo "Upravuji /etc/fstab"
 	echo "Instaluji NFS"
-	ssh -t $RUSER@$RIPADDR "sudo urpmi nfs-utils --auto"
+	ssh -t $RUSER@$RIPADDR "sudo urpmi nfs-utils rpm-build rpmlint expect rsync --auto"
 	#tvorba adresaru
 	echo "Instaluji adresarovou strukturu"
 	ssh $RUSER@$RIPADDR "mkdir -p /home/petos/rpms"
@@ -125,7 +127,7 @@ function InstallRemoteSystem {
 	#uprava fstab
 	echo "Upravuji /etc/fstab"
 	SudoRun $RUSER $RIPADDR "echo \"ds:/volume1/repos/ /home/petos/rpms/ nfs defaults,auto,vers=3 0 0\" >> /etc/fstab" 
-	SudoRun $RUSER $RIPADDR "echo \"ds:/volume1/ftprepos/ /home/petos/ftprepos/ nfs defaults,auto,vers=3 0 0\" >> /etc/fstab" 
+	SudoRun $RUSER $RIPADDR "echo \"ds:/volume1/ftprepo/ /home/petos/ftprepos/ nfs defaults,auto,vers=3 0 0\" >> /etc/fstab" 
 	#pripojeni NFS disku
 	echo "Pripojuji NFS disky"
 	ssh -t $RUSER@$RIPADDR "sudo mount -a"
